@@ -30,6 +30,9 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using SR = System.Reflection;
+#if NETFX_CORE
+using System.Reflection;
+#endif
 
 using Mono.Collections.Generic;
 
@@ -183,7 +186,11 @@ namespace Mono.Cecil.Cil {
 
 		static SR.AssemblyName GetPlatformSymbolAssemblyName ()
 		{
-			var cecil_name = typeof (SymbolProvider).Assembly.GetName ();
+#if !NETFX_CORE
+            var cecil_name = typeof (SymbolProvider).Assembly.GetName ();
+#else
+            var cecil_name = typeof(SymbolProvider).GetTypeInfo().Assembly.GetName();
+#endif
 
 			var name = new SR.AssemblyName {
 				Name = "Mono.Cecil." + symbol_kind,
@@ -212,7 +219,7 @@ namespace Mono.Cecil.Cil {
 				if (assembly != null)
 					return assembly.GetType (fullname);
 			} catch (FileNotFoundException) {
-#if !CF
+#if !CF && !NETFX_CORE
 			} catch (FileLoadException) {
 #endif
 			}

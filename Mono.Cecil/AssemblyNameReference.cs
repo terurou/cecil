@@ -28,7 +28,12 @@
 
 using System;
 using System.Globalization;
+#if !NETFX_CORE
 using System.Security.Cryptography;
+#else
+using Windows.Security.Cryptography.Core;
+using Windows.Storage.Streams;
+#endif
 using System.Text;
 
 namespace Mono.Cecil {
@@ -126,7 +131,8 @@ namespace Mono.Cecil {
 
 		byte [] HashPublicKey ()
 		{
-			HashAlgorithm algorithm;
+#if !NETFX_CORE
+            HashAlgorithm algorithm;
 
 			switch (hash_algorithm) {
 			case AssemblyHashAlgorithm.Reserved:
@@ -149,6 +155,31 @@ namespace Mono.Cecil {
 
 			using (algorithm)
 				return algorithm.ComputeHash (public_key);
+#else
+            var provider = (HashAlgorithmProvider)null;
+            switch (hash_algorithm)
+            {
+                case AssemblyHashAlgorithm.Reserved:
+                    provider = HashAlgorithmProvider.OpenAlgorithm(HashAlgorithmNames.Md5);
+                    break;
+                default:
+                    // None default to SHA1
+                    provider = HashAlgorithmProvider.OpenAlgorithm(HashAlgorithmNames.Sha1);
+                    break;
+            }
+            
+            using (var writer = new DataWriter())
+            {
+                writer.WriteBytes(public_key);
+                var hash = provider.HashData(writer.DetachBuffer());
+                using (var reader = DataReader.FromBuffer(hash))
+                {
+                    var bytes = new byte[hash.Length];
+                    reader.ReadBytes(bytes);
+                    return bytes;
+                }
+            }
+#endif
 		}
 
 		public virtual MetadataScopeType MetadataScopeType {

@@ -26,18 +26,20 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
+#if !READ_ONLY
+
 using System;
 using System.IO;
 using System.Reflection;
+#if !NETFX_CORE
 using System.Security.Cryptography;
-
-#if !READ_ONLY
-
 #if !SILVERLIGHT && !CF
 using System.Runtime.Serialization;
 using Mono.Security.Cryptography;
 #endif
-
+#else
+using Windows.Security.Cryptography.Core;
+#endif
 using Mono.Cecil.PE;
 
 namespace Mono.Cecil {
@@ -48,7 +50,7 @@ namespace Mono.Cecil {
 
 	static class CryptoService {
 
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 		public static void StrongName (Stream stream, ImageWriter writer, StrongNameKeyPair key_pair)
 		{
 			int strong_name_pointer;
@@ -120,6 +122,7 @@ namespace Mono.Cecil {
 			}
 		}
 
+#if !NETFX_CORE
 		public static byte [] ComputeHash (string file)
 		{
 			if (!File.Exists (file))
@@ -139,9 +142,10 @@ namespace Mono.Cecil {
 
 			return sha1.Hash;
 		}
+#endif
 	}
 
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 	static partial class Mixin {
 
 		public static RSA CreateRSA (this StrongNameKeyPair key_pair)

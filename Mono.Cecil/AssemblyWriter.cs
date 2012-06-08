@@ -30,6 +30,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+#if NETFX_CORE
+using System.Reflection;
+#endif
 
 using Mono.Collections.Generic;
 using Mono.Cecil.Cil;
@@ -96,7 +99,7 @@ namespace Mono.Cecil {
 				symbol_writer_provider = SymbolProvider.GetPlatformWriterProvider ();
 			var symbol_writer = GetSymbolWriter (module, fq_name, symbol_writer_provider);
 
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 			if (parameters.StrongNameKeyPair != null && name != null) {
 				name.PublicKey = parameters.StrongNameKeyPair.PublicKey;
 				module.Attributes |= ModuleAttributes.StrongNameSigned;
@@ -114,7 +117,7 @@ namespace Mono.Cecil {
 
 			writer.WriteImage ();
 
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 			if (parameters.StrongNameKeyPair != null)
 				CryptoService.StrongName (stream, writer, parameters.StrongNameKeyPair);
 #endif
@@ -832,7 +835,7 @@ namespace Mono.Cecil {
 
 			var assembly = module.Assembly;
 
-			if (assembly != null)
+            if (assembly != null)
 				BuildAssembly ();
 
 			if (module.HasAssemblyReferences)
@@ -886,7 +889,7 @@ namespace Mono.Cecil {
 				BuildModules ();
 		}
 
-		void BuildModules ()
+        void BuildModules ()
 		{
 			var modules = this.module.Assembly.Modules;
 			var table = GetTable<FileTable> (Table.File);
@@ -896,6 +899,7 @@ namespace Mono.Cecil {
 				if (module.IsMain)
 					continue;
 
+#if !NETFX_CORE
 				var parameters = new WriterParameters {
 					SymbolWriterProvider = symbol_writer_provider,
 				};
@@ -909,10 +913,13 @@ namespace Mono.Cecil {
 					FileAttributes.ContainsMetaData,
 					GetStringIndex (module.Name),
 					GetBlobIndex (hash)));
-			}
+#else
+                throw new NotImplementedException();
+#endif
+            }
 		}
 
-		string GetModuleFileName (string name)
+        string GetModuleFileName (string name)
 		{
 			if (string.IsNullOrEmpty (name))
 				throw new NotSupportedException ();
@@ -983,11 +990,15 @@ namespace Mono.Cecil {
 					row.Col1 = AddEmbeddedResource ((EmbeddedResource) resource);
 					break;
 				case ResourceType.Linked:
+#if !NETFX_CORE
 					row.Col4 = CodedIndex.Implementation.CompressMetadataToken (
 						new MetadataToken (
 							TokenType.File,
 							AddLinkedResource ((LinkedResource) resource)));
 					break;
+#else
+                    throw new NotSupportedException();
+#endif
 				case ResourceType.AssemblyLinked:
 					row.Col4 = CodedIndex.Implementation.CompressMetadataToken (
 						((AssemblyLinkedResource) resource).Assembly.MetadataToken);
@@ -1000,6 +1011,7 @@ namespace Mono.Cecil {
 			}
 		}
 
+#if !NETFX_CORE
 		uint AddLinkedResource (LinkedResource resource)
 		{
 			var table = GetTable<FileTable> (Table.File);
@@ -1013,6 +1025,7 @@ namespace Mono.Cecil {
 				GetStringIndex (resource.File),
 				GetBlobIndex (hash)));
 		}
+#endif
 
 		uint AddEmbeddedResource (EmbeddedResource resource)
 		{
@@ -1667,8 +1680,13 @@ namespace Mono.Cecil {
 
 		static ElementType GetConstantType (Type type)
 		{
-			switch (Type.GetTypeCode (type)) {
-			case TypeCode.Boolean:
+#if !NETFX_CORE
+            switch (Type.GetTypeCode (type)) {
+#else
+            switch (type.GetTypeCode())
+            {
+#endif
+            case TypeCode.Boolean:
 				return ElementType.Boolean;
 			case TypeCode.Byte:
 				return ElementType.U1;
@@ -2311,8 +2329,13 @@ namespace Mono.Cecil {
 			if (value == null)
 				throw new ArgumentNullException ();
 
+#if !NETFX_CORE
 			switch (Type.GetTypeCode (value.GetType ())) {
-			case TypeCode.Boolean:
+#else
+            switch (value.GetType().GetTypeCode())
+            {
+#endif
+            case TypeCode.Boolean:
 				WriteByte ((byte) (((bool) value) ? 1 : 0));
 				break;
 			case TypeCode.Byte:

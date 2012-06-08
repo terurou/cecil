@@ -51,7 +51,7 @@ namespace Mono.Cecil {
 		}
 	}
 
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 	[Serializable]
 #endif
 	public class AssemblyResolutionException : FileNotFoundException {
@@ -68,7 +68,7 @@ namespace Mono.Cecil {
 			this.reference = reference;
 		}
 
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 		protected AssemblyResolutionException (
 			System.Runtime.Serialization.SerializationInfo info,
 			System.Runtime.Serialization.StreamingContext context)
@@ -125,13 +125,15 @@ namespace Mono.Cecil {
 			directories = new Collection<string> (2) { ".", "bin" };
 		}
 
-		AssemblyDefinition GetAssembly (string file, ReaderParameters parameters)
+#if !NETFX_CORE
+        AssemblyDefinition GetAssembly (string file, ReaderParameters parameters)
 		{
 			if (parameters.AssemblyResolver == null)
 				parameters.AssemblyResolver = this;
 
 			return ModuleDefinition.ReadModule (file, parameters).Assembly;
 		}
+#endif
 
 		public virtual AssemblyDefinition Resolve (AssemblyNameReference name)
 		{
@@ -145,11 +147,15 @@ namespace Mono.Cecil {
 			if (parameters == null)
 				parameters = new ReaderParameters ();
 
+#if !NETFX_CORE
 			var assembly = SearchDirectory (name, directories, parameters);
 			if (assembly != null)
 				return assembly;
+#else
+            var assembly = (AssemblyDefinition)null;
+#endif
 
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 			var framework_dir = Path.GetDirectoryName (typeof (object).Module.FullyQualifiedName);
 
 			if (IsZero (name.Version)) {
@@ -182,7 +188,8 @@ namespace Mono.Cecil {
 			throw new AssemblyResolutionException (name);
 		}
 
-		AssemblyDefinition SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories, ReaderParameters parameters)
+#if !NETFX_CORE
+        AssemblyDefinition SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories, ReaderParameters parameters)
 		{
 			var extensions = new [] { ".exe", ".dll" };
 			foreach (var directory in directories) {
@@ -195,13 +202,14 @@ namespace Mono.Cecil {
 
 			return null;
 		}
+#endif
 
 		static bool IsZero (Version version)
 		{
 			return version == null || (version.Major == 0 && version.Minor == 0 && version.Build == 0 && version.Revision == 0);
 		}
 
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 		AssemblyDefinition GetCorlib (AssemblyNameReference reference, ReaderParameters parameters)
 		{
 			var version = reference.Version;

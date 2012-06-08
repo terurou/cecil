@@ -30,6 +30,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using SR = System.Reflection;
+#if NETFX_CORE
+using System.Reflection;
+#endif
 
 using Mono.Cecil.Cil;
 using Mono.Cecil.Metadata;
@@ -137,10 +140,14 @@ namespace Mono.Cecil {
 
 		static TargetRuntime GetCurrentRuntime ()
 		{
-#if !CF
+#if !CF && !NETFX_CORE
 			return typeof (object).Assembly.ImageRuntimeVersion.ParseRuntime ();
 #else
-			var corlib_version = typeof (object).Assembly.GetName ().Version;
+#if !NETFX_CORE
+            var corlib_version = typeof (object).Assembly.GetName ().Version;
+#else
+            var corlib_version = typeof(object).GetTypeInfo().Assembly.GetName().Version;
+#endif
 			switch (corlib_version.Major) {
 			case 1:
 				return corlib_version.Minor == 0
@@ -162,7 +169,7 @@ namespace Mono.Cecil {
 		Stream symbol_stream;
 		ISymbolWriterProvider symbol_writer_provider;
 		bool write_symbols;
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 		SR.StrongNameKeyPair key_pair;
 #endif
 		public Stream SymbolStream {
@@ -179,7 +186,7 @@ namespace Mono.Cecil {
 			get { return write_symbols; }
 			set { write_symbols = value; }
 		}
-#if !SILVERLIGHT && !CF
+#if !SILVERLIGHT && !CF && !NETFX_CORE
 		public SR.StrongNameKeyPair StrongNameKeyPair {
 			get { return key_pair; }
 			set { key_pair = value; }
@@ -926,22 +933,26 @@ namespace Mono.Cecil {
 			ProcessDebugHeader ();
 		}
 
+#if !NETFX_CORE
 		public static ModuleDefinition ReadModule (string fileName)
 		{
 			return ReadModule (fileName, new ReaderParameters (ReadingMode.Deferred));
 		}
+#endif
 
-		public static ModuleDefinition ReadModule (Stream stream)
+        public static ModuleDefinition ReadModule (Stream stream)
 		{
 			return ReadModule (stream, new ReaderParameters (ReadingMode.Deferred));
 		}
 
+#if !NETFX_CORE
 		public static ModuleDefinition ReadModule (string fileName, ReaderParameters parameters)
 		{
 			using (var stream = GetFileStream (fileName, FileMode.Open, FileAccess.Read, FileShare.Read)) {
 				return ReadModule (stream, parameters);
 			}
 		}
+#endif
 
 		static void CheckStream (object stream)
 		{
@@ -961,36 +972,42 @@ namespace Mono.Cecil {
 				parameters);
 		}
 
+#if !NETFX_CORE
 		static Stream GetFileStream (string fileName, FileMode mode, FileAccess access, FileShare share)
 		{
-			if (fileName == null)
+            if (fileName == null)
 				throw new ArgumentNullException ("fileName");
 			if (fileName.Length == 0)
 				throw new ArgumentException ();
 
 			return new FileStream (fileName, mode, access, share);
 		}
+#endif
 
 #if !READ_ONLY
 
+#if !NETFX_CORE
 		public void Write (string fileName)
 		{
 			Write (fileName, new WriterParameters ());
 		}
-
+#endif
+        
 		public void Write (Stream stream)
 		{
 			Write (stream, new WriterParameters ());
 		}
 
+#if !NETFX_CORE
 		public void Write (string fileName, WriterParameters parameters)
 		{
-			using (var stream = GetFileStream (fileName, FileMode.Create, FileAccess.ReadWrite, FileShare.None)) {
+            using (var stream = GetFileStream (fileName, FileMode.Create, FileAccess.ReadWrite, FileShare.None)) {
 				Write (stream, parameters);
 			}
 		}
+#endif
 
-		public void Write (Stream stream, WriterParameters parameters)
+        public void Write (Stream stream, WriterParameters parameters)
 		{
 			CheckStream (stream);
 			if (!stream.CanWrite || !stream.CanSeek)
@@ -1027,7 +1044,7 @@ namespace Mono.Cecil {
 
 		public static string GetFullyQualifiedName (this Stream self)
 		{
-#if !SILVERLIGHT
+#if !SILVERLIGHT && !NETFX_CORE
 			var file_stream = self as FileStream;
 			if (file_stream == null)
 				return string.Empty;

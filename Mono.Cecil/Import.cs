@@ -29,6 +29,10 @@
 using System;
 using System.Collections.Generic;
 using SR = System.Reflection;
+#if NETFX_CORE
+using System.Linq;
+using System.Reflection;
+#endif
 
 using Mono.Cecil.Metadata;
 
@@ -64,8 +68,10 @@ namespace Mono.Cecil {
 			{ typeof (float), ElementType.R4 },
 			{ typeof (double), ElementType.R8 },
 			{ typeof (string), ElementType.String },
+            #if !NETFX_CORE
 			{ typeof (TypedReference), ElementType.TypedByRef },
-			{ typeof (IntPtr), ElementType.I },
+            #endif
+            { typeof (IntPtr), ElementType.I },
 			{ typeof (UIntPtr), ElementType.U },
 			{ typeof (object), ElementType.Object },
 		};
@@ -80,13 +86,22 @@ namespace Mono.Cecil {
 			if (IsTypeSpecification (type) || ImportOpenGenericType (type, import_kind))
 				return ImportTypeSpecification (type, context);
 
+#if !NETFX_CORE
 			var reference = new TypeReference (
 				string.Empty,
 				type.Name,
 				module,
 				ImportScope (type.Assembly),
 				type.IsValueType);
-
+#else
+            var typeInfo = type.GetTypeInfo();
+            var reference = new TypeReference (
+				string.Empty,
+				type.Name,
+				module,
+				ImportScope (typeInfo.Assembly),
+				typeInfo.IsValueType);
+#endif
 			reference.etype = ImportElementType (type);
 
 			if (IsNestedType (type))
@@ -94,16 +109,25 @@ namespace Mono.Cecil {
 			else
 				reference.Namespace = type.Namespace ?? string.Empty;
 
+#if !NETFX_CORE
 			if (type.IsGenericType)
 				ImportGenericParameters (reference, type.GetGenericArguments ());
-
+#else
+            if (typeInfo.IsGenericType)
+                ImportGenericParameters(reference, typeInfo.GenericTypeParameters);
+#endif
 			return reference;
 		}
 
 		static bool ImportOpenGenericType (Type type, ImportGenericKind import_kind)
 		{
-			return type.IsGenericType && type.IsGenericTypeDefinition && import_kind == ImportGenericKind.Open;
-		}
+#if !NETFX_CORE
+            return type.IsGenericType && type.IsGenericTypeDefinition && import_kind == ImportGenericKind.Open;
+#else
+            var typeInfo = type.GetTypeInfo();
+            return typeInfo.IsGenericType && typeInfo.IsGenericTypeDefinition && import_kind == ImportGenericKind.Open;
+#endif
+        }
 
 		static bool ImportOpenGenericMethod (SR.MethodBase method, ImportGenericKind import_kind)
 		{
@@ -130,7 +154,11 @@ namespace Mono.Cecil {
 			if (type.IsArray)
 				return new ArrayType (ImportType (type.GetElementType (), context), type.GetArrayRank ());
 
-			if (type.IsGenericType)
+#if !NETFX_CORE
+            if (type.IsGenericType)
+#else
+            if (type.GetTypeInfo().IsGenericType)
+#endif
 				return ImportGenericInstance (type, context);
 
 			if (type.IsGenericParameter)
@@ -144,8 +172,12 @@ namespace Mono.Cecil {
 			if (context == null)
 				throw new InvalidOperationException ();
 
+#if !NETFX_CORE
 			var owner = type.DeclaringMethod != null
-				? context.Method
+#else
+            var owner = type.GetTypeInfo().DeclaringMethod != null
+#endif
+            ? context.Method
 				: context.Type;
 
 			if (owner == null)
@@ -158,7 +190,11 @@ namespace Mono.Cecil {
 		{
 			var element_type = ImportType (type.GetGenericTypeDefinition (), context, ImportGenericKind.Definition);
 			var instance = new GenericInstanceType (element_type);
-			var arguments = type.GetGenericArguments ();
+#if !NETFX_CORE
+            var arguments = type.GetGenericArguments ();
+#else
+            var arguments = type.GetTypeInfo().GenericTypeParameters;
+#endif
 			var instance_arguments = instance.GenericArguments;
 
 			for (int i = 0; i < arguments.Length; i++)
@@ -176,8 +212,13 @@ namespace Mono.Cecil {
 
 		static bool IsGenericInstance (Type type)
 		{
-			return type.IsGenericType && !type.IsGenericTypeDefinition;
-		}
+#if !NETFX_CORE
+            return type.IsGenericType && !type.IsGenericTypeDefinition;
+#else
+            var typeInfo = type.GetTypeInfo();
+            return typeInfo.IsGenericType && !typeInfo.IsGenericTypeDefinition;
+#endif
+        }
 
 		static ElementType ImportElementType (Type type)
 		{
@@ -191,17 +232,18 @@ namespace Mono.Cecil {
 		AssemblyNameReference ImportScope (SR.Assembly assembly)
 		{
 			AssemblyNameReference scope;
-#if !SILVERLIGHT
+#if !SILVERLIGHT && !NETFX_CORE
 			var name = assembly.GetName ();
 
 			if (TryGetAssemblyNameReference (name, out scope))
 				return scope;
 
-			scope = new AssemblyNameReference (name.Name, name.Version) {
-				Culture = name.CultureInfo.Name,
-				PublicKeyToken = name.GetPublicKeyToken (),
-				HashAlgorithm = (AssemblyHashAlgorithm) name.HashAlgorithm,
-			};
+            scope = new AssemblyNameReference(name.Name, name.Version)
+            {
+                Culture = name.CultureName,
+                PublicKeyToken = name.GetPublicKeyToken(),
+                HashAlgorithm = (AssemblyHashAlgorithm)name.HashAlgorithm,
+            };
 
 			module.AssemblyReferences.Add (scope);
 
@@ -253,15 +295,17 @@ namespace Mono.Cecil {
 
 		static SR.FieldInfo ResolveFieldDefinition (SR.FieldInfo field)
 		{
-#if !SILVERLIGHT
-			return field.Module.ResolveField (field.MetadataToken);
-#else
+#if SILVERLIGHT
 			return field.DeclaringType.GetGenericTypeDefinition ().GetField (field.Name,
 				SR.BindingFlags.Public
 				| SR.BindingFlags.NonPublic
 				| (field.IsStatic ? SR.BindingFlags.Static : SR.BindingFlags.Instance));
+#elif NETFX_CORE
+            return field.DeclaringType.GetGenericTypeDefinition().GetTypeInfo().DeclaredFields.FirstOrDefault(x => x.Name == field.Name);
+#else
+            return field.Module.ResolveField(field.MetadataToken);
 #endif
-		}
+        }
 
 		public MethodReference ImportMethod (SR.MethodBase method, IGenericContext context, ImportGenericKind import_kind)
 		{
@@ -270,10 +314,15 @@ namespace Mono.Cecil {
 
 			var declaring_type = ImportType (method.DeclaringType, context);
 
-			if (IsGenericInstance (method.DeclaringType))
+#if !NETFX_CORE
+            if (IsGenericInstance(method.DeclaringType))
 				method = method.Module.ResolveMethod (method.MetadataToken);
+#else
+            method = method.DeclaringType.GetTypeInfo().DeclaredMethods
+                        .FirstOrDefault(x => x.Name == method.Name);
+#endif
 
-			var reference = new MethodReference {
+            var reference = new MethodReference {
 				Name = method.Name,
 				HasThis = HasCallingConvention (method, SR.CallingConventions.HasThis),
 				ExplicitThis = HasCallingConvention (method, SR.CallingConventions.ExplicitThis),

@@ -535,6 +535,7 @@ namespace Mono.Cecil {
 			return GetMethodDefinition (token.RID);
 		}
 
+#if !NETFX_CORE
 		public Collection<ModuleDefinition> ReadModules ()
 		{
 			var modules = new Collection<ModuleDefinition> (1);
@@ -569,8 +570,9 @@ namespace Mono.Cecil {
 			var path = Path.GetDirectoryName (module.FullyQualifiedName);
 			return Path.Combine (path, name);
 		}
+#endif
 
-		void InitializeModuleReferences ()
+        void InitializeModuleReferences ()
 		{
 			if (metadata.ModuleReferences != null)
 				return;

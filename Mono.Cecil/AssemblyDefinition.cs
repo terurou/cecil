@@ -61,8 +61,10 @@ namespace Mono.Cecil {
 				if (modules != null)
 					return modules;
 
+#if !NETFX_CORE
 				if (main_module.HasImage)
 					return modules = main_module.Read (this, (_, reader) => reader.ReadModules ());
+#endif
 
 				return modules = new Collection<ModuleDefinition> (1) { main_module };
 			}
@@ -130,7 +132,8 @@ namespace Mono.Cecil {
 		}
 #endif
 
-		public static AssemblyDefinition ReadAssembly (string fileName)
+#if !NETFX_CORE
+        public static AssemblyDefinition ReadAssembly (string fileName)
 		{
 			return ReadAssembly (ModuleDefinition.ReadModule (fileName));
 		}
@@ -139,6 +142,7 @@ namespace Mono.Cecil {
 		{
 			return ReadAssembly (ModuleDefinition.ReadModule (fileName, parameters));
 		}
+#endif
 
 		public static AssemblyDefinition ReadAssembly (Stream stream)
 		{
@@ -160,20 +164,24 @@ namespace Mono.Cecil {
 		}
 
 #if !READ_ONLY
+#if !NETFX_CORE
 		public void Write (string fileName)
 		{
 			Write (fileName, new WriterParameters ());
 		}
+#endif
 
 		public void Write (Stream stream)
 		{
 			Write (stream, new WriterParameters ());
 		}
 
+#if !NETFX_CORE
 		public void Write (string fileName, WriterParameters parameters)
 		{
 			main_module.Write (fileName, parameters);
 		}
+#endif
 
 		public void Write (Stream stream, WriterParameters parameters)
 		{
