@@ -243,8 +243,14 @@ namespace Mono.Cecil {
 			if (context.IsEmpty)
 				throw new InvalidOperationException ();
 
+#if !NETFX_CORE
 			if (type.DeclaringMethod != null)
 				return context.MethodParameter (type.DeclaringMethod.Name, type.GenericParameterPosition);
+#else
+            var typeInfo = type.GetTypeInfo();
+            if (typeInfo.DeclaringMethod != null)
+                return context.MethodParameter(typeInfo.DeclaringMethod.Name, type.GenericParameterPosition);
+#endif
 
 			if (type.DeclaringType != null)
 				return  context.TypeParameter (NormalizedFullName (type.DeclaringType), type.GenericParameterPosition);
