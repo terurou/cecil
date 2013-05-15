@@ -1,4 +1,4 @@
-﻿
+﻿#if NETFX_CORE
 namespace System.Reflection
 {
     /// <summary>
@@ -104,3 +104,4 @@ namespace System.Reflection
         String
     }
 }
+#endif
